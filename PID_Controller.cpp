@@ -1,26 +1,41 @@
 #include "PID_Controller.hpp"
+#include <iostream>
 
-float PID_Controller::calculateController(float processVar, std::time_t time) 
+using namespace std;
+float PID_Controller::calculateController(float processVar, std::size_t time_now) 
 {
     // calculate P (the magnitude of current error)
     float error = _setpoint - processVar;
+    float P = Kp * error;
 
-    // calculate I (the sum of past error)
-    if(_prevTime == 0)
+    // if prevTime is 0 then this is the first iteration
+    // if this is the first iteration, return without calculating I or D
+    if(_prev_time == 0)
     {
-        auto now = std::chrono::system_clock::now().time_since_epoch();
-        _prevTime = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+        _prev_time = time_now;
+        return P;
     }
-    float integratedError = ((error + _prevError) / 2) * (time - _prevTime);
-    _totError += integratedError;
 
-    // calculate D (the predicted future change)
-    float derivedError = ((error - _prevError) / (time - _prevTime));    
+    // protect against divide by 0
+    float delta_t = time_now - _prev_time;
+    _prev_time = time_now;
+    if(delta_t == 0)
+    {
+        delta_t = 0.001;
+    }
 
-    float P = _Kp * error;
-    float I = _Ki * _totError;
-    float D = _Kd * derivedError * (-1);
+    // calculate I (sum of all error so far)
+    float integratedError = ((error + _prev_error) / 2) * delta_t;
+    float I = Ki * (_total_error + integratedError);
 
+    // calculate D (the predicted future error)
+    //cout << "Error: " << error << " Previous Error: " << _prev_error << endl;
+    //cout << "Delta t: " << delta_t << endl;
+    float derivedError = ((error - _prev_error) / delta_t);
+    _prev_error = error;
+    float D = Kd * derivedError * (-1);
+
+    //cout << "P: " << P << " I: " << I << " D: " << D << endl;   
     return (P + I + D);
 }
 
